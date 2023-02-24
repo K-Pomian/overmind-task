@@ -21,13 +21,14 @@ module OvermindTask::core {
   const GAME_NOT_EXISTS: u64 = 5;
   const GAME_IS_FULL: u64 = 6;
   const GAME_ALREADY_STARTED: u64 = 7;
-  const GAME_EXPIRED: u64 = 8;
-  const GAME_NOT_EXPIRED: u64 = 9;
-  const GAME_COIN_TYPE_MISMATCH: u64 = 10;
-  const PLAYER_ALREADY_JOINED: u64 = 11;
-  const PLAYER_HAS_NOT_COIN_REGISTERED: u64 = 12;
-  const INSUFFICIENT_BALANCE: u64 = 13;
-  const PERMISSION_DENIED: u64 = 14;
+  const GAME_NOT_STARTED: u64 = 8;
+  const GAME_EXPIRED: u64 = 9;
+  const GAME_NOT_EXPIRED: u64 = 10;
+  const GAME_COIN_TYPE_MISMATCH: u64 = 11;
+  const PLAYER_ALREADY_JOINED: u64 = 12;
+  const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 13;
+  const INSUFFICIENT_BALANCE: u64 = 14;
+  const PERMISSION_DENIED: u64 = 15;
 
   struct State has key {
     available_games: Table<String, address>
@@ -112,7 +113,7 @@ module OvermindTask::core {
     assert!(!game.has_started, GAME_ALREADY_STARTED);
     assert!(vector::length(&game.players) < vector::length(&game.withdrawal_fractions), GAME_IS_FULL);
     assert!(!vector::contains(&game.players, &player_address), PLAYER_ALREADY_JOINED);
-    assert!(coin::is_account_registered<CoinType>(player_address), PLAYER_HAS_NOT_COIN_REGISTERED);
+    assert!(coin::is_account_registered<CoinType>(player_address), PLAYER_HAS_COIN_NOT_REGISTERED);
     assert!(coin::balance<CoinType>(player_address) >= game.deposit_amount, INSUFFICIENT_BALANCE);
 
     coin::transfer<CoinType>(player, game_address, game.deposit_amount);
@@ -151,5 +152,35 @@ module OvermindTask::core {
     };
 
     game.has_finished = true;
+  }
+
+  public entry fun paperhand<CoinType>(player: &signer, game_name: vector<u8>) acquires State, DiamondHandsGame {
+    let state = borrow_global<State>(@ADMIN);
+
+    let game_name_string = string::utf8(game_name);
+    assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
+
+    let game_address = *table::borrow(&state.available_games, game_name_string);
+    assert!(coin::is_account_registered<CoinType>(game_address), GAME_COIN_TYPE_MISMATCH);
+    let game = borrow_global_mut<DiamondHandsGame<CoinType>>(game_address);
+
+    let player_address = signer::address_of(player);
+    assert!(vector::contains(&game.players, &player_address), PERMISSION_DENIED);
+    assert!(game.has_started, GAME_NOT_STARTED);
+
+    let fraction = vector::pop_back(&mut game.withdrawal_fractions);
+    let number_of_players = vector::length(&game.players);
+    let numerator = fraction * number_of_players * game.deposit_amount;
+    let eligible_amount = numerator / WITHDRAWAL_DENOMINATOR;
+
+    let resource_account_signer = account::create_signer_with_capability(&game.signer_cap);
+    coin::transfer<CoinType>(&resource_account_signer, player_address, eligible_amount);
+
+    let (_, player_index) = vector::index_of(&game.players, &player_address);
+    vector::remove(&mut game.players, player_index);
+
+    if (vector::length(&game.players) == 0) {
+      game.has_finished = true;
+    }
   }
 }
