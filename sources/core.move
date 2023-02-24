@@ -1,7 +1,21 @@
 module OvermindTask::core {
   use std::vector;
   use std::table::{Self, Table};
+  use std::string::{Self, String};
+  use std::signer;
+
   use aptos_framework::account::{Self, SignerCapability};
+  use aptos_framework::timestamp;
+
+  use OvermindTask::utils;
+
+  const GAME_SEED: vector<u8> = b"GAME_SEED";
+  const WITHDRAWAL_DENOMINATOR: u64 = 10000;
+
+  const INVALID_DEPOSITORS_NUMBER: u64 = 0;
+  const WITHDRAWAL_VECTOR_LENGTH_MISSMATCH: u64 = 1;
+  const GAME_ALREADY_EXISTS: u64 = 2;
+
   struct State has key {
     available_games: Table<String, address>
   }
