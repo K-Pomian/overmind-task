@@ -45,12 +45,12 @@ module OvermindTask::core {
     })
   }
 
-  public entry fun create_game(
+  public entry fun create_game<CoinType>(
     owner: &signer,
     game_name: vector<u8>,
     depositors_number: u64,
     amount_per_depositor: u64,
-    withdrawal_vector: vector<u64>,
+    withdrawal_fractions: vector<u64>,
     join_duration: u64
   ) acquires State {
     assert!(depositors_number > 1, INVALID_DEPOSITORS_NUMBER);
