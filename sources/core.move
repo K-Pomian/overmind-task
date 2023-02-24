@@ -6,6 +6,7 @@ module OvermindTask::core {
 
   use aptos_framework::account::{Self, SignerCapability};
   use aptos_framework::timestamp;
+  use aptos_framework::coin;
 
   use OvermindTask::utils;
 
@@ -86,5 +87,35 @@ module OvermindTask::core {
       has_started: false,
       signer_cap: resource_account_cap
     });
+  }
+
+  public entry fun join_game<CoinType>(
+    player: &signer,
+    game_name: vector<u8>
+  ) acquires State, DiamondHandsGame {
+    let state = borrow_global<State>(@ADMIN);
+
+    let game_name_string = string::utf8(game_name);
+    assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
+
+    let game_address = *table::borrow(&state.available_games, game_name_string);
+    assert!(coin::is_account_registered<CoinType>(game_address), GAME_COIN_TYPE_MISMATCH);
+    let game = borrow_global_mut<DiamondHandsGame<CoinType>>(game_address);
+
+    let current_time = timestamp::now_seconds();
+    let player_address = signer::address_of(player);
+    assert!(current_time < game.expiration_timestamp, GAME_EXPIRED);
+    assert!(!game.has_started, GAME_ALREADY_STARTED);
+    assert!(vector::length(&game.players) < vector::length(&game.withdrawal_fractions), GAME_IS_FULL);
+    assert!(!vector::contains(&game.players, &player_address), PLAYER_ALREADY_JOINED);
+    assert!(coin::is_account_registered<CoinType>(player_address), PLAYER_HAS_NOT_COIN_REGISTERED);
+    assert!(coin::balance<CoinType>(player_address) >= game.deposit_amount, INSUFFICIENT_BALANCE);
+
+    coin::transfer<CoinType>(player, game_address, game.deposit_amount);
+    vector::push_back(&mut game.players, player_address);
+
+    if (vector::length(&game.players) == vector::length(&game.withdrawal_fractions)) {
+      game.has_started = true;
+    };
   }
 }
