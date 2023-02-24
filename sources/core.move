@@ -40,7 +40,6 @@ module OvermindTask::core {
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
     has_started: bool,
-    has_finished: bool,
     signer_cap: SignerCapability
   }
 
@@ -76,6 +75,10 @@ module OvermindTask::core {
 
     let seeds = GAME_SEED;
     vector::append(&mut seeds, game_name);
+
+    let resource_account_address = account::create_resource_address(&owner_address, seeds);
+    assert!(!account::exists_at(resource_account_address), GAME_ALREADY_EXISTED);
+
     let (resource_account_signer, resource_account_cap) = account::create_resource_account(owner, seeds);
     coin::register<CoinType>(&resource_account_signer);
 
@@ -89,7 +92,6 @@ module OvermindTask::core {
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
       has_started: false,
-      has_finished: false,
       signer_cap: resource_account_cap
     });
   }
@@ -150,12 +152,12 @@ module OvermindTask::core {
 
       i = i + 1;
     };
-
-    game.has_finished = true;
+    
+    table::remove(&mut state.available_games, game_name_string);
   }
 
   public entry fun paperhand<CoinType>(player: &signer, game_name: vector<u8>) acquires State, DiamondHandsGame {
-    let state = borrow_global<State>(@ADMIN);
+    let state = borrow_global_mut<State>(@ADMIN);
 
     let game_name_string = string::utf8(game_name);
     assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
@@ -180,7 +182,7 @@ module OvermindTask::core {
     vector::remove(&mut game.players, player_index);
 
     if (vector::length(&game.players) == 0) {
-      game.has_finished = true;
+      table::remove(&mut state.available_games, game_name_string);
     }
   }
 }
