@@ -179,4 +179,12 @@ module OvermindTask::core {
       table::remove(&mut state.available_games, game_name_string);
     }
   }
+
+  #[test(account = @0x1111)]
+  fun test_init_state(account: &signer) {
+    init_state(account);
+
+    let account_address = signer::address_of(account);
+    assert!(exists<State>(account_address), 0);
+  }
 }
