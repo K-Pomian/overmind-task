@@ -22,10 +22,12 @@ module OvermindTask::core {
   const GAME_IS_FULL: u64 = 6;
   const GAME_ALREADY_STARTED: u64 = 7;
   const GAME_EXPIRED: u64 = 8;
-  const GAME_COIN_TYPE_MISMATCH: u64 = 9;
-  const PLAYER_ALREADY_JOINED: u64 = 10;
-  const PLAYER_HAS_NOT_COIN_REGISTERED: u64 = 11;
-  const INSUFFICIENT_BALANCE: u64 = 12;
+  const GAME_NOT_EXPIRED: u64 = 9;
+  const GAME_COIN_TYPE_MISMATCH: u64 = 10;
+  const PLAYER_ALREADY_JOINED: u64 = 11;
+  const PLAYER_HAS_NOT_COIN_REGISTERED: u64 = 12;
+  const INSUFFICIENT_BALANCE: u64 = 13;
+  const PERMISSION_DENIED: u64 = 14;
 
   struct State has key {
     available_games: Table<String, address>
