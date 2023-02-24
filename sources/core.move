@@ -10,7 +10,7 @@ module OvermindTask::core {
 
   use OvermindTask::utils;
 
-  const GAME_SEED: vector<u8> = b"GAME_SEED";
+  const GAME_SEED: vector<u8> = b"DIAMOND_HANDS_GAME";
   const WITHDRAWAL_DENOMINATOR: u64 = 10000;
 
   const WRONG_ADMIN: u64 = 0;
