@@ -11,7 +11,6 @@ module OvermindTask::core {
   use OvermindTask::utils;
 
   const GAME_SEED: vector<u8> = b"DIAMOND_HANDS_GAME";
-  const WITHDRAWAL_DENOMINATOR: u64 = 10000;
 
   const WRONG_ADMIN: u64 = 0;
   const COIN_NOT_EXISTS: u64 = 1;
@@ -168,9 +167,7 @@ module OvermindTask::core {
     assert!(game.has_started, GAME_NOT_STARTED);
 
     let fraction = vector::pop_back(&mut game.withdrawal_fractions);
-    let number_of_players = vector::length(&game.players);
-    let numerator = fraction * number_of_players * game.deposit_amount;
-    let eligible_amount = numerator / WITHDRAWAL_DENOMINATOR;
+    let eligible_amount = utils::calculate_withdraw_amount(fraction, game.max_players, game.deposit_amount);
 
     let resource_account_signer = account::create_signer_with_capability(&game.signer_cap);
     coin::transfer<CoinType>(&resource_account_signer, player_address, eligible_amount);
