@@ -6,7 +6,7 @@ module OvermindTask::core {
 
   use aptos_framework::account::{Self, SignerCapability};
   use aptos_framework::timestamp;
-  use aptos_framework::coin;
+  use aptos_framework::coin::{Self, BurnCapability, FreezeCapability, MintCapability};
 
   use OvermindTask::utils;
 
@@ -178,6 +178,22 @@ module OvermindTask::core {
     if (vector::length(&game.players) == 0) {
       table::remove(&mut state.available_games, game_name_string);
     }
+  }
+
+  #[test_only]
+  struct TestCoin {}
+
+  #[test_only]
+  fun initialize_test_coin(
+    account: &signer
+  ): (BurnCapability<TestCoin>, FreezeCapability<TestCoin>, MintCapability<TestCoin>) {
+    coin::initialize<TestCoin>(
+      account,
+      string::utf8(b"TestCoin"),
+      string::utf8(b"TC"),
+      6,
+      false
+    )
   }
 
   #[test(account = @0x1111)]
