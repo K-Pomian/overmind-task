@@ -18,13 +18,13 @@ module OvermindTask::core {
   const INVALID_DEPOSITORS_NUMBER: u64 = 2;
   const WITHDRAWAL_FRACTIONS_LENGTH_MISSMATCH: u64 = 3;
   const GAME_ALREADY_EXISTS: u64 = 4;
-  const GAME_NOT_EXISTS: u64 = 5;
-  const GAME_IS_FULL: u64 = 6;
-  const GAME_ALREADY_STARTED: u64 = 7;
-  const GAME_NOT_STARTED: u64 = 8;
-  const GAME_EXPIRED: u64 = 9;
-  const GAME_NOT_EXPIRED: u64 = 10;
-  const GAME_COIN_TYPE_MISMATCH: u64 = 11;
+  const GAME_ALREADY_EXISTED: u64 = 5;
+  const GAME_NOT_EXISTS: u64 = 6;
+  const GAME_IS_FULL: u64 = 7;
+  const GAME_ALREADY_STARTED: u64 = 8;
+  const GAME_NOT_STARTED: u64 = 9;
+  const GAME_EXPIRED: u64 = 10;
+  const GAME_NOT_EXPIRED: u64 = 11;
   const PLAYER_ALREADY_JOINED: u64 = 12;
   const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 13;
   const INSUFFICIENT_BALANCE: u64 = 14;
@@ -40,7 +40,6 @@ module OvermindTask::core {
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
     has_started: bool,
-    has_finished: bool,
     signer_cap: SignerCapability
   }
 
@@ -53,7 +52,6 @@ module OvermindTask::core {
   public entry fun create_game<CoinType>(
     owner: &signer,
     game_name: vector<u8>,
-    depositors_number: u64,
     amount_per_depositor: u64,
     withdrawal_fractions: vector<u64>,
     join_duration: u64
@@ -62,8 +60,7 @@ module OvermindTask::core {
     assert!(owner_address == @ADMIN, WRONG_ADMIN);
 
     assert!(coin::is_coin_initialized<CoinType>(), COIN_NOT_EXISTS);
-    assert!(depositors_number > 1, INVALID_DEPOSITORS_NUMBER);
-    assert!(depositors_number == vector::length(&withdrawal_fractions), WITHDRAWAL_FRACTIONS_LENGTH_MISSMATCH);
+    assert!(vector::length(&withdrawal_fractions) > 1, INVALID_DEPOSITORS_NUMBER);
     utils::check_withdrawal_fractions(&withdrawal_fractions);
     
     if (!exists<State>(owner_address)) {
@@ -76,6 +73,10 @@ module OvermindTask::core {
 
     let seeds = GAME_SEED;
     vector::append(&mut seeds, game_name);
+
+    let resource_account_address = account::create_resource_address(&owner_address, seeds);
+    assert!(!account::exists_at(resource_account_address), GAME_ALREADY_EXISTED);
+
     let (resource_account_signer, resource_account_cap) = account::create_resource_account(owner, seeds);
     coin::register<CoinType>(&resource_account_signer);
 
@@ -89,7 +90,6 @@ module OvermindTask::core {
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
       has_started: false,
-      has_finished: false,
       signer_cap: resource_account_cap
     });
   }
@@ -104,7 +104,6 @@ module OvermindTask::core {
     assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
 
     let game_address = *table::borrow(&state.available_games, game_name_string);
-    assert!(coin::is_account_registered<CoinType>(game_address), GAME_COIN_TYPE_MISMATCH);
     let game = borrow_global_mut<DiamondHandsGame<CoinType>>(game_address);
 
     let current_time = timestamp::now_seconds();
@@ -134,7 +133,6 @@ module OvermindTask::core {
     assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
 
     let game_address = *table::borrow(&state.available_games, game_name_string);
-    assert!(coin::is_account_registered<CoinType>(game_address), GAME_COIN_TYPE_MISMATCH);
     let game = borrow_global_mut<DiamondHandsGame<CoinType>>(game_address);
 
     let user_address = signer::address_of(account);
@@ -150,18 +148,17 @@ module OvermindTask::core {
 
       i = i + 1;
     };
-
-    game.has_finished = true;
+    
+    table::remove(&mut state.available_games, game_name_string);
   }
 
   public entry fun paperhand<CoinType>(player: &signer, game_name: vector<u8>) acquires State, DiamondHandsGame {
-    let state = borrow_global<State>(@ADMIN);
+    let state = borrow_global_mut<State>(@ADMIN);
 
     let game_name_string = string::utf8(game_name);
     assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
 
     let game_address = *table::borrow(&state.available_games, game_name_string);
-    assert!(coin::is_account_registered<CoinType>(game_address), GAME_COIN_TYPE_MISMATCH);
     let game = borrow_global_mut<DiamondHandsGame<CoinType>>(game_address);
 
     let player_address = signer::address_of(player);
@@ -180,7 +177,7 @@ module OvermindTask::core {
     vector::remove(&mut game.players, player_index);
 
     if (vector::length(&game.players) == 0) {
-      game.has_finished = true;
+      table::remove(&mut state.available_games, game_name_string);
     }
   }
 }
