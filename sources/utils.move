@@ -3,8 +3,8 @@ module OvermindTask::utils {
   
   friend OvermindTask::core;
 
-  const INVALID_FRACTION: u64 = 2;
-  const INVALID_FRACTIONS_SUM: u64 = 3;
+  const INVALID_ORDERING: u64 = 0;
+  const INVALID_FRACTIONS_SUM: u64 = 1;
 
   const WITHDRAWAL_DENOMINATOR: u64 = 10000;
 
@@ -17,7 +17,7 @@ module OvermindTask::utils {
       let current_fraction = *vector::borrow(withdrawal_vector, i);
       let next_fraction = *vector::borrow(withdrawal_vector, i + 1);
 
-      assert!(current_fraction >= next_fraction, INVALID_FRACTION);
+      assert!(current_fraction >= next_fraction, INVALID_ORDERING);
       
       sum = sum + current_fraction;
       if (i == withdrawal_vector_length - 2) {
@@ -39,8 +39,30 @@ module OvermindTask::utils {
     numerator / WITHDRAWAL_DENOMINATOR
   }
 
-  // #[test]
-  // fun test_check_withdrawal_fractions() {
-  //   let withdrawal_fractions = vector[]
-  // }
+  #[test]
+  fun test_check_withdrawal_fractions_successful() {
+    let withdrawal_fractions = vector[3555, 2450, 1790, 1500, 705, 0, 0];
+    check_withdrawal_fractions(&withdrawal_fractions);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = 0x0, location = Self)]
+  fun test_check_withdrawal_fractions_invalid_ordering() {
+    let withdrawal_fractions = vector[3555, 2450, 1499, 1500, 705, 0, 0];
+    check_withdrawal_fractions(&withdrawal_fractions);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = 0x1, location = Self)]
+  fun test_check_withdrawal_fractions_fraction_sum_too_big() {
+    let withdrawal_fractions = vector[3555, 2450, 1790, 1500, 710, 0, 0];
+    check_withdrawal_fractions(&withdrawal_fractions);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = 0x1, location = Self)]
+  fun test_check_withdrawal_fractions_fraction_sum_too_small() {
+    let withdrawal_fractions = vector[3555, 2450, 1790, 1500, 0, 0, 0];
+    check_withdrawal_fractions(&withdrawal_fractions);
+  }
 }
