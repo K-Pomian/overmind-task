@@ -12,9 +12,19 @@ module OvermindTask::core {
   const GAME_SEED: vector<u8> = b"GAME_SEED";
   const WITHDRAWAL_DENOMINATOR: u64 = 10000;
 
-  const INVALID_DEPOSITORS_NUMBER: u64 = 0;
-  const WITHDRAWAL_VECTOR_LENGTH_MISSMATCH: u64 = 1;
-  const GAME_ALREADY_EXISTS: u64 = 2;
+  const WRONG_ADMIN: u64 = 0;
+  const COIN_NOT_EXISTS: u64 = 1;
+  const INVALID_DEPOSITORS_NUMBER: u64 = 2;
+  const WITHDRAWAL_FRACTIONS_LENGTH_MISSMATCH: u64 = 3;
+  const GAME_ALREADY_EXISTS: u64 = 4;
+  const GAME_NOT_EXISTS: u64 = 5;
+  const GAME_IS_FULL: u64 = 6;
+  const GAME_ALREADY_STARTED: u64 = 7;
+  const GAME_EXPIRED: u64 = 8;
+  const GAME_COIN_TYPE_MISMATCH: u64 = 9;
+  const PLAYER_ALREADY_JOINED: u64 = 10;
+  const PLAYER_HAS_NOT_COIN_REGISTERED: u64 = 11;
+  const INSUFFICIENT_BALANCE: u64 = 12;
 
   struct State has key {
     available_games: Table<String, address>
