@@ -39,6 +39,7 @@ module OvermindTask::core {
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
     has_started: bool,
+    has_finished: bool,
     signer_cap: SignerCapability
   }
 
@@ -87,6 +88,7 @@ module OvermindTask::core {
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
       has_started: false,
+      has_finished: false,
       signer_cap: resource_account_cap
     });
   }
