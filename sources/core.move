@@ -153,4 +153,34 @@ module OvermindTask::core {
 
     game.has_finished = true;
   }
+
+  public entry fun paperhand<CoinType>(player: &signer, game_name: vector<u8>) acquires State, DiamondHandsGame {
+    let state = borrow_global<State>(@ADMIN);
+
+    let game_name_string = string::utf8(game_name);
+    assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
+
+    let game_address = *table::borrow(&state.available_games, game_name_string);
+    assert!(coin::is_account_registered<CoinType>(game_address), GAME_COIN_TYPE_MISMATCH);
+    let game = borrow_global_mut<DiamondHandsGame<CoinType>>(game_address);
+
+    let player_address = signer::address_of(player);
+    assert!(vector::contains(&game.players, &player_address), PERMISSION_DENIED);
+    assert!(game.has_started, GAME_NOT_STARTED);
+
+    let fraction = vector::pop_back(&mut game.withdrawal_fractions);
+    let number_of_players = vector::length(&game.players);
+    let numerator = fraction * number_of_players * game.deposit_amount;
+    let eligible_amount = numerator / WITHDRAWAL_DENOMINATOR;
+
+    let resource_account_signer = account::create_signer_with_capability(&game.signer_cap);
+    coin::transfer<CoinType>(&resource_account_signer, player_address, eligible_amount);
+
+    let (_, player_index) = vector::index_of(&game.players, &player_address);
+    vector::remove(&mut game.players, player_index);
+
+    if (vector::length(&game.players) == 0) {
+      game.has_finished = true;
+    }
+  }
 }
