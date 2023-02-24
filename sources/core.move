@@ -11,7 +11,6 @@ module OvermindTask::core {
   use OvermindTask::utils;
 
   const GAME_SEED: vector<u8> = b"DIAMOND_HANDS_GAME";
-  const WITHDRAWAL_DENOMINATOR: u64 = 10000;
 
   const WRONG_ADMIN: u64 = 0;
   const COIN_NOT_EXISTS: u64 = 1;
@@ -36,6 +35,7 @@ module OvermindTask::core {
   
   struct DiamondHandsGame<phantom CoinType> has key {
     players: vector<address>,
+    max_players: u64,
     deposit_amount: u64,
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
@@ -86,6 +86,7 @@ module OvermindTask::core {
     let current_time = timestamp::now_seconds();
     move_to(&resource_account_signer, DiamondHandsGame<CoinType> {
       players: vector::empty(),
+      max_players: vector::length(&withdrawal_fractions),
       deposit_amount: amount_per_depositor,
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
@@ -110,7 +111,7 @@ module OvermindTask::core {
     let player_address = signer::address_of(player);
     assert!(current_time < game.expiration_timestamp, GAME_EXPIRED);
     assert!(!game.has_started, GAME_ALREADY_STARTED);
-    assert!(vector::length(&game.players) < vector::length(&game.withdrawal_fractions), GAME_IS_FULL);
+    assert!(vector::length(&game.players) < game.max_players, GAME_IS_FULL);
     assert!(!vector::contains(&game.players, &player_address), PLAYER_ALREADY_JOINED);
     assert!(coin::is_account_registered<CoinType>(player_address), PLAYER_HAS_COIN_NOT_REGISTERED);
     assert!(coin::balance<CoinType>(player_address) >= game.deposit_amount, INSUFFICIENT_BALANCE);
@@ -166,9 +167,7 @@ module OvermindTask::core {
     assert!(game.has_started, GAME_NOT_STARTED);
 
     let fraction = vector::pop_back(&mut game.withdrawal_fractions);
-    let number_of_players = vector::length(&game.players);
-    let numerator = fraction * number_of_players * game.deposit_amount;
-    let eligible_amount = numerator / WITHDRAWAL_DENOMINATOR;
+    let eligible_amount = utils::calculate_withdraw_amount(fraction, game.max_players, game.deposit_amount);
 
     let resource_account_signer = account::create_signer_with_capability(&game.signer_cap);
     coin::transfer<CoinType>(&resource_account_signer, player_address, eligible_amount);

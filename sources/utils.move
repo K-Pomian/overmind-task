@@ -6,6 +6,8 @@ module OvermindTask::utils {
   const INVALID_FRACTION: u64 = 2;
   const INVALID_FRACTIONS_SUM: u64 = 3;
 
+  const WITHDRAWAL_DENOMINATOR: u64 = 10000;
+
   public(friend) fun check_withdrawal_fractions(withdrawal_vector: &vector<u64>) {
     let withdrawal_vector_length = vector::length(withdrawal_vector);
 
@@ -27,4 +29,18 @@ module OvermindTask::utils {
 
     assert!(sum == 10000, INVALID_FRACTIONS_SUM);
   }
+
+  public(friend) fun calculate_withdraw_amount(
+    withdrawal_fraction: u64,
+    number_of_players: u64,
+    deposit_amount: u64
+  ): u64 {
+    let numerator = withdrawal_fraction * number_of_players * deposit_amount;
+    numerator / WITHDRAWAL_DENOMINATOR
+  }
+
+  // #[test]
+  // fun test_check_withdrawal_fractions() {
+  //   let withdrawal_fractions = vector[]
+  // }
 }
