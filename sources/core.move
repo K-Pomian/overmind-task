@@ -122,4 +122,34 @@ module OvermindTask::core {
       game.has_started = true;
     };
   }
+
+  public entry fun cancel_expired_game<CoinType>(
+    account: &signer,
+    game_name: vector<u8>
+  ) acquires State, DiamondHandsGame {
+    let state = borrow_global_mut<State>(@ADMIN);
+
+    let game_name_string = string::utf8(game_name);
+    assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
+
+    let game_address = *table::borrow(&state.available_games, game_name_string);
+    assert!(coin::is_account_registered<CoinType>(game_address), GAME_COIN_TYPE_MISMATCH);
+    let game = borrow_global_mut<DiamondHandsGame<CoinType>>(game_address);
+
+    let user_address = signer::address_of(account);
+    let current_time = timestamp::now_seconds();
+    assert!(current_time >= game.expiration_timestamp && !game.has_started, GAME_NOT_EXPIRED);
+    assert!(user_address == @ADMIN || vector::contains(&game.players, &user_address), PERMISSION_DENIED);
+
+    let resource_account_signer = account::create_signer_with_capability(&game.signer_cap);
+    let i = 0;
+    while (i < vector::length(&game.players)) {
+      let player_address = *vector::borrow(&game.players, i);
+      coin::transfer<CoinType>(&resource_account_signer, player_address, game.deposit_amount);
+
+      i = i + 1;
+    };
+
+    game.has_finished = true;
+  }
 }
