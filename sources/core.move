@@ -30,11 +30,12 @@ module OvermindTask::core {
     available_games: Table<String, address>
   }
   
-  struct Game has key {
-    depositors_number: u64,
-    amount_per_depositor: u64,
-    withdrawal_vector: vector<u64>, // 10000 == 100% => 100 == 1%
+  struct DiamondHandsGame<phantom CoinType> has key {
+    players: vector<address>,
+    deposit_amount: u64,
+    withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
+    has_started: bool,
     signer_cap: SignerCapability
   }
 
