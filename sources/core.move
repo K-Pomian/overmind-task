@@ -834,4 +834,16 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(owner = @ADMIN, player = @0x48651)]
+  #[expected_failure(abort_code = 0x5, location = Self)]
+  public entry fun test_paperhand_game_not_exists(
+    owner: &signer,
+    player: &signer
+  ) acquires State, DiamondHandsGame {
+    init_state(owner);
+
+    let game_name = b"TestGame";
+    paperhand<TestCoin>(player, game_name);
+  }
 }
