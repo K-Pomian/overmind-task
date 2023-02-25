@@ -6,7 +6,7 @@ module OvermindTask::core {
 
   use aptos_framework::account::{Self, SignerCapability};
   use aptos_framework::timestamp;
-  use aptos_framework::coin;
+  use aptos_framework::coin::{Self, BurnCapability, FreezeCapability, MintCapability};
 
   use OvermindTask::utils;
 
@@ -15,19 +15,18 @@ module OvermindTask::core {
   const WRONG_ADMIN: u64 = 0;
   const COIN_NOT_EXISTS: u64 = 1;
   const INVALID_DEPOSITORS_NUMBER: u64 = 2;
-  const WITHDRAWAL_FRACTIONS_LENGTH_MISSMATCH: u64 = 3;
-  const GAME_ALREADY_EXISTS: u64 = 4;
-  const GAME_ALREADY_EXISTED: u64 = 5;
-  const GAME_NOT_EXISTS: u64 = 6;
-  const GAME_IS_FULL: u64 = 7;
-  const GAME_ALREADY_STARTED: u64 = 8;
-  const GAME_NOT_STARTED: u64 = 9;
-  const GAME_EXPIRED: u64 = 10;
-  const GAME_NOT_EXPIRED: u64 = 11;
-  const PLAYER_ALREADY_JOINED: u64 = 12;
-  const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 13;
-  const INSUFFICIENT_BALANCE: u64 = 14;
-  const PERMISSION_DENIED: u64 = 15;
+  const GAME_ALREADY_EXISTS: u64 = 3;
+  const GAME_ALREADY_EXISTED: u64 = 4;
+  const GAME_NOT_EXISTS: u64 = 5;
+  const GAME_IS_FULL: u64 = 6;
+  const GAME_ALREADY_STARTED: u64 = 7;
+  const GAME_NOT_STARTED: u64 = 8;
+  const GAME_EXPIRED: u64 = 9;
+  const GAME_NOT_EXPIRED: u64 = 10;
+  const PLAYER_ALREADY_JOINED: u64 = 11;
+  const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 12;
+  const INSUFFICIENT_BALANCE: u64 = 13;
+  const PERMISSION_DENIED: u64 = 14;
 
   struct State has key {
     available_games: Table<String, address>
@@ -69,7 +68,7 @@ module OvermindTask::core {
 
     let state = borrow_global_mut<State>(owner_address);
     let game_name_string = string::utf8(game_name);
-    assert!(table::contains(&state.available_games, game_name_string), GAME_ALREADY_EXISTS);
+    assert!(!table::contains(&state.available_games, game_name_string), GAME_ALREADY_EXISTS);
 
     let seeds = GAME_SEED;
     vector::append(&mut seeds, game_name);
@@ -180,11 +179,161 @@ module OvermindTask::core {
     }
   }
 
+  #[test_only]
+  struct TestCoin {}
+
+  #[test_only]
+  fun initialize_test_coin(
+    account: &signer
+  ): (BurnCapability<TestCoin>, FreezeCapability<TestCoin>, MintCapability<TestCoin>) {
+    coin::initialize<TestCoin>(
+      account,
+      string::utf8(b"TestCoin"),
+      string::utf8(b"TC"),
+      6,
+      false
+    )
+  }
+
   #[test(account = @0x1111)]
   fun test_init_state(account: &signer) {
     init_state(account);
 
     let account_address = signer::address_of(account);
     assert!(exists<State>(account_address), 0);
+  }
+
+  #[test(owner = @ADMIN, aptos_framework = @0x1)]
+  public entry fun test_create_game_successfull(
+    owner: &signer,
+    aptos_framework: &signer
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+    let game_name = b"TestGame";
+    let amount_per_depositor = 159842396;
+    let withdrawal_fractions = vector[4492, 2559, 1111, 687, 555, 321, 175, 100];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let game_name_string = string::utf8(game_name);
+    let owner_address = signer::address_of(owner);
+    let state = borrow_global<State>(owner_address);
+    assert!(table::contains(&state.available_games, game_name_string), 0);
+
+    let game_address = *table::borrow(&state.available_games, game_name_string);
+    assert!(exists<DiamondHandsGame<TestCoin>>(game_address), 1);
+
+    let game = borrow_global<DiamondHandsGame<TestCoin>>(game_address);
+    assert!(vector::length(&game.players) == 0, 2);
+    assert!(game.max_players == 8, 3);
+    assert!(game.deposit_amount == amount_per_depositor, 4);
+    assert!(game.withdrawal_fractions == withdrawal_fractions, 5);
+    assert!(!game.has_started, 6);
+
+    let expected_seeds = GAME_SEED;
+    vector::append(&mut expected_seeds, game_name);
+
+    let expected_resource_account_address = account::create_resource_address(&owner_address, expected_seeds);
+    assert!(game_address == expected_resource_account_address, 7);
+
+    let signer_cap = account::create_test_signer_cap(expected_resource_account_address);
+    assert!(&game.signer_cap == &signer_cap, 8);
+
+    assert!(coin::is_account_registered<TestCoin>(game_address), 9);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
+
+  #[test(owner = @0xaaaa444522)]
+  #[expected_failure(abort_code = 0x0, location = Self)]
+  public entry fun test_create_game_wrong_admin(owner: &signer) acquires State {
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[6550, 2000, 1450];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+  }
+
+  #[test(owner = @ADMIN)]
+  #[expected_failure(abort_code = 0x1, location = Self)]
+  public entry fun test_create_game_coin_not_exists(owner: &signer) acquires State {
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[6550, 2000, 1450];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+  }
+
+  #[test(owner = @ADMIN)]
+  #[expected_failure(abort_code = 0x2, location = Self)]
+  public entry fun test_create_game_invalid_number_of_depositors(owner: &signer) acquires State {
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[10000];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
+
+  #[test(owner = @ADMIN, aptos_framework = @0x1)]
+  #[expected_failure(abort_code = 0x3, location = Self)]
+  public entry fun test_create_game_already_exists(
+    owner: &signer, 
+    aptos_framework: &signer
+  ) acquires State {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 2550, 1950];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
+
+  #[test(owner = @ADMIN, aptos_framework = @0x1)]
+  #[expected_failure(abort_code = 0x4, location = Self)]
+  public entry fun test_create_game_which_existed_in_the_past(
+    owner: &signer,
+    aptos_framework: &signer
+  ) acquires State {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 2550, 1950];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let game_name_string = string::utf8(game_name);
+    let owner_address = signer::address_of(owner);
+    let state = borrow_global_mut<State>(owner_address);
+    table::remove(&mut state.available_games, game_name_string);
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
   }
 }
