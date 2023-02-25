@@ -460,4 +460,54 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(
+    aptos_framework = @0x1,
+    owner = @ADMIN,
+    first_player = @0xafdd8854,
+    second_player = @0xaabbcc,
+    third_player = @0x55874216
+  )]
+  #[expected_failure(abort_code = 0x7, location = Self)]
+  public entry fun test_join_game_already_started(
+    aptos_framework: &signer,
+    owner: &signer,
+    first_player: &signer,
+    second_player: &signer,
+    third_player: &signer
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 4500];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let first_player_address = signer::address_of(first_player);
+    account::create_account_for_test(first_player_address);
+    coin::register<TestCoin>(first_player);
+    coin::deposit(first_player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(first_player, game_name);
+
+    let second_player_address = signer::address_of(second_player);
+    account::create_account_for_test(second_player_address);
+    coin::register<TestCoin>(second_player);
+    coin::deposit(second_player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(second_player, game_name);
+
+    join_game<TestCoin>(third_player, game_name);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
 }
