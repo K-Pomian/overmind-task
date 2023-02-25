@@ -259,4 +259,15 @@ module OvermindTask::core {
 
     create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
   }
+
+  #[test(owner = @ADMIN)]
+  #[expected_failure(abort_code = 0x1, location = Self)]
+  public entry fun test_create_game_coin_not_exists(owner: &signer) acquires State {
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[6550, 2000, 1450];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+  }
 }
