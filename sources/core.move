@@ -226,7 +226,6 @@ module OvermindTask::core {
     assert!(game.max_players == 8, 3);
     assert!(game.deposit_amount == amount_per_depositor, 4);
     assert!(game.withdrawal_fractions == withdrawal_fractions, 5);
-    assert!(!game.has_started, 6);
 
     let expected_seeds = GAME_SEED;
     vector::append(&mut expected_seeds, game_name);
@@ -376,7 +375,6 @@ module OvermindTask::core {
       assert!(vector::contains(&game.players, &first_player_address), 1);
       assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor, 2);
       assert!(coin::balance<TestCoin>(first_player_address) == 0, 3);
-      assert!(!game.has_started, 4);
     };
 
     let second_player_address = signer::address_of(second_player);
@@ -388,12 +386,11 @@ module OvermindTask::core {
 
     {
       let game = borrow_global<DiamondHandsGame<TestCoin>>(game_address);
-      assert!(vector::length(&game.players) == 2, 5);
-      assert!(vector::contains(&game.players, &first_player_address), 6);
-      assert!(vector::contains(&game.players, &second_player_address), 7);
-      assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor * 2, 8);
-      assert!(coin::balance<TestCoin>(second_player_address) == 0, 9);
-      assert!(!game.has_started, 10);
+      assert!(vector::length(&game.players) == 2, 4);
+      assert!(vector::contains(&game.players, &first_player_address), 5);
+      assert!(vector::contains(&game.players, &second_player_address), 6);
+      assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor * 2, 7);
+      assert!(coin::balance<TestCoin>(second_player_address) == 0, 8);
     };
 
     let third_player_address = signer::address_of(third_player);
@@ -405,13 +402,12 @@ module OvermindTask::core {
 
     {
       let game = borrow_global<DiamondHandsGame<TestCoin>>(game_address);
-      assert!(vector::length(&game.players) == 3, 11);
-      assert!(vector::contains(&game.players, &first_player_address), 12);
-      assert!(vector::contains(&game.players, &second_player_address), 13);
-      assert!(vector::contains(&game.players, &third_player_address), 14);
-      assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor * 3, 15);
-      assert!(coin::balance<TestCoin>(third_player_address) == 0, 16);
-      assert!(game.has_started, 17);
+      assert!(vector::length(&game.players) == 3, 9);
+      assert!(vector::contains(&game.players, &first_player_address), 10);
+      assert!(vector::contains(&game.players, &second_player_address), 11);
+      assert!(vector::contains(&game.players, &third_player_address), 12);
+      assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor * 3, 13);
+      assert!(coin::balance<TestCoin>(third_player_address) == 0, 14);
     };
 
     coin::destroy_burn_cap(burn_cap);
@@ -432,7 +428,7 @@ module OvermindTask::core {
   }
 
   #[test(aptos_framework = @0x1, owner = @ADMIN, player = @0xafdd8854)]
-  #[expected_failure(abort_code = 0x9, location = Self)]
+  #[expected_failure(abort_code = 0x8, location = Self)]
   public entry fun test_join_game_already_expired(
     aptos_framework: &signer,
     owner: &signer,
@@ -464,7 +460,7 @@ module OvermindTask::core {
     second_player = @0xaabbcc,
     third_player = @0x55874216
   )]
-  #[expected_failure(abort_code = 0x7, location = Self)]
+  #[expected_failure(abort_code = 0x6, location = Self)]
   public entry fun test_join_game_already_started(
     aptos_framework: &signer,
     owner: &signer,
@@ -474,10 +470,6 @@ module OvermindTask::core {
   ) acquires State, DiamondHandsGame {
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
-
-    coin::destroy_burn_cap(burn_cap);
-    coin::destroy_freeze_cap(freeze_cap);
-    coin::destroy_mint_cap(mint_cap);
 
     let game_name = b"TestGame";
     let amount_per_depositor = 486123;
