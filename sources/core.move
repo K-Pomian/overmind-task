@@ -18,15 +18,14 @@ module OvermindTask::core {
   const GAME_ALREADY_EXISTS: u64 = 3;
   const GAME_ALREADY_EXISTED: u64 = 4;
   const GAME_NOT_EXISTS: u64 = 5;
-  const GAME_IS_FULL: u64 = 6;
-  const GAME_ALREADY_STARTED: u64 = 7;
-  const GAME_NOT_STARTED: u64 = 8;
-  const GAME_EXPIRED: u64 = 9;
-  const GAME_NOT_EXPIRED: u64 = 10;
-  const PLAYER_ALREADY_JOINED: u64 = 11;
-  const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 12;
-  const INSUFFICIENT_BALANCE: u64 = 13;
-  const PERMISSION_DENIED: u64 = 14;
+  const GAME_ALREADY_STARTED: u64 = 6;
+  const GAME_NOT_STARTED: u64 = 7;
+  const GAME_EXPIRED: u64 = 8;
+  const GAME_NOT_EXPIRED: u64 = 9;
+  const PLAYER_ALREADY_JOINED: u64 = 10;
+  const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 11;
+  const INSUFFICIENT_BALANCE: u64 = 12;
+  const PERMISSION_DENIED: u64 = 13;
 
   struct State has key {
     available_games: Table<String, address>
@@ -38,7 +37,6 @@ module OvermindTask::core {
     deposit_amount: u64,
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
-    has_started: bool,
     signer_cap: SignerCapability
   }
 
@@ -89,7 +87,6 @@ module OvermindTask::core {
       deposit_amount: amount_per_depositor,
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
-      has_started: false,
       signer_cap: resource_account_cap
     });
   }
@@ -109,18 +106,13 @@ module OvermindTask::core {
     let current_time = timestamp::now_seconds();
     let player_address = signer::address_of(player);
     assert!(current_time < game.expiration_timestamp, GAME_EXPIRED);
-    assert!(!game.has_started, GAME_ALREADY_STARTED);
-    assert!(vector::length(&game.players) < game.max_players, GAME_IS_FULL);
+    assert!(vector::length(&game.players) < game.max_players, GAME_ALREADY_STARTED);
     assert!(!vector::contains(&game.players, &player_address), PLAYER_ALREADY_JOINED);
     assert!(coin::is_account_registered<CoinType>(player_address), PLAYER_HAS_COIN_NOT_REGISTERED);
     assert!(coin::balance<CoinType>(player_address) >= game.deposit_amount, INSUFFICIENT_BALANCE);
 
     coin::transfer<CoinType>(player, game_address, game.deposit_amount);
     vector::push_back(&mut game.players, player_address);
-
-    if (vector::length(&game.players) == vector::length(&game.withdrawal_fractions)) {
-      game.has_started = true;
-    };
   }
 
   public entry fun cancel_expired_game<CoinType>(
@@ -137,7 +129,11 @@ module OvermindTask::core {
 
     let user_address = signer::address_of(account);
     let current_time = timestamp::now_seconds();
-    assert!(current_time >= game.expiration_timestamp && !game.has_started, GAME_NOT_EXPIRED);
+    assert!(
+      current_time >= game.expiration_timestamp &&
+      vector::length(&game.players) < vector::length(&game.withdrawal_fractions),
+      GAME_NOT_EXPIRED
+    );
     assert!(user_address == @ADMIN || vector::contains(&game.players, &user_address), PERMISSION_DENIED);
 
     let resource_account_signer = account::create_signer_with_capability(&game.signer_cap);
@@ -163,7 +159,7 @@ module OvermindTask::core {
 
     let player_address = signer::address_of(player);
     assert!(vector::contains(&game.players, &player_address), PERMISSION_DENIED);
-    assert!(game.has_started, GAME_NOT_STARTED);
+    assert!(vector::length(&game.players) == vector::length(&game.withdrawal_fractions), GAME_NOT_STARTED);
 
     let fraction = vector::pop_back(&mut game.withdrawal_fractions);
     let eligible_amount = utils::calculate_withdraw_amount(fraction, game.max_players, game.deposit_amount);
