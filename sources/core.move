@@ -336,4 +336,90 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(
+    aptos_framework = @0x1,
+    owner = @ADMIN,
+    first_player = @0xafdd8854,
+    second_player = @0xffade455,
+    third_player = @0xaaced55548
+  )]
+  public entry fun test_join_game_successful(
+    aptos_framework: &signer,
+    owner: &signer,
+    first_player: &signer,
+    second_player: &signer,
+    third_player: &signer
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 2550, 1950];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let owner_address = signer::address_of(owner);
+    let state = borrow_global<State>(owner_address);
+    
+    let game_name_string = string::utf8(game_name);
+    let game_address = *table::borrow(&state.available_games, game_name_string);
+
+    let first_player_address = signer::address_of(first_player);
+    account::create_account_for_test(first_player_address);
+    coin::register<TestCoin>(first_player);
+    coin::deposit(first_player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(first_player, game_name);
+
+    {
+      let game = borrow_global<DiamondHandsGame<TestCoin>>(game_address);
+      assert!(vector::length(&game.players) == 1, 0);
+      assert!(vector::contains(&game.players, &first_player_address), 1);
+      assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor, 2);
+      assert!(coin::balance<TestCoin>(first_player_address) == 0, 3);
+      assert!(!game.has_started, 4);
+    };
+
+    let second_player_address = signer::address_of(second_player);
+    account::create_account_for_test(second_player_address);
+    coin::register<TestCoin>(second_player);
+    coin::deposit(second_player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(second_player, game_name);
+
+    {
+      let game = borrow_global<DiamondHandsGame<TestCoin>>(game_address);
+      assert!(vector::length(&game.players) == 2, 5);
+      assert!(vector::contains(&game.players, &first_player_address), 6);
+      assert!(vector::contains(&game.players, &second_player_address), 7);
+      assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor * 2, 8);
+      assert!(coin::balance<TestCoin>(second_player_address) == 0, 9);
+      assert!(!game.has_started, 10);
+    };
+
+    let third_player_address = signer::address_of(third_player);
+    account::create_account_for_test(third_player_address);
+    coin::register<TestCoin>(third_player);
+    coin::deposit(third_player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(third_player, game_name);
+
+    {
+      let game = borrow_global<DiamondHandsGame<TestCoin>>(game_address);
+      assert!(vector::length(&game.players) == 3, 11);
+      assert!(vector::contains(&game.players, &first_player_address), 12);
+      assert!(vector::contains(&game.players, &second_player_address), 13);
+      assert!(vector::contains(&game.players, &third_player_address), 14);
+      assert!(coin::balance<TestCoin>(game_address) == amount_per_depositor * 3, 15);
+      assert!(coin::balance<TestCoin>(third_player_address) == 0, 16);
+      assert!(game.has_started, 17);
+    };
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
 }
