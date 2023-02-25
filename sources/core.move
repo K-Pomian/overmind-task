@@ -15,19 +15,18 @@ module OvermindTask::core {
   const WRONG_ADMIN: u64 = 0;
   const COIN_NOT_EXISTS: u64 = 1;
   const INVALID_DEPOSITORS_NUMBER: u64 = 2;
-  const WITHDRAWAL_FRACTIONS_LENGTH_MISSMATCH: u64 = 3;
-  const GAME_ALREADY_EXISTS: u64 = 4;
-  const GAME_ALREADY_EXISTED: u64 = 5;
-  const GAME_NOT_EXISTS: u64 = 6;
-  const GAME_IS_FULL: u64 = 7;
-  const GAME_ALREADY_STARTED: u64 = 8;
-  const GAME_NOT_STARTED: u64 = 9;
-  const GAME_EXPIRED: u64 = 10;
-  const GAME_NOT_EXPIRED: u64 = 11;
-  const PLAYER_ALREADY_JOINED: u64 = 12;
-  const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 13;
-  const INSUFFICIENT_BALANCE: u64 = 14;
-  const PERMISSION_DENIED: u64 = 15;
+  const GAME_ALREADY_EXISTS: u64 = 3;
+  const GAME_ALREADY_EXISTED: u64 = 4;
+  const GAME_NOT_EXISTS: u64 = 5;
+  const GAME_IS_FULL: u64 = 6;
+  const GAME_ALREADY_STARTED: u64 = 7;
+  const GAME_NOT_STARTED: u64 = 8;
+  const GAME_EXPIRED: u64 = 9;
+  const GAME_NOT_EXPIRED: u64 = 10;
+  const PLAYER_ALREADY_JOINED: u64 = 11;
+  const PLAYER_HAS_COIN_NOT_REGISTERED: u64 = 12;
+  const INSUFFICIENT_BALANCE: u64 = 13;
+  const PERMISSION_DENIED: u64 = 14;
 
   struct State has key {
     available_games: Table<String, address>
@@ -287,4 +286,7 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(owner = @ADMIN)]
+  #[expected_failure(abort_code = 0x3, location = Self)]
 }
