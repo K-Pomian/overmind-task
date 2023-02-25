@@ -69,7 +69,7 @@ module OvermindTask::core {
 
     let state = borrow_global_mut<State>(owner_address);
     let game_name_string = string::utf8(game_name);
-    assert!(table::contains(&state.available_games, game_name_string), GAME_ALREADY_EXISTS);
+    assert!(!table::contains(&state.available_games, game_name_string), GAME_ALREADY_EXISTS);
 
     let seeds = GAME_SEED;
     vector::append(&mut seeds, game_name);
