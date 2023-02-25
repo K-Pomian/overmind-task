@@ -161,10 +161,15 @@ module OvermindTask::core {
     assert!(vector::contains(&game.players, &player_address), PERMISSION_DENIED);
     assert!(vector::length(&game.players) == vector::length(&game.withdrawal_fractions), GAME_NOT_STARTED);
 
-    let fraction = vector::pop_back(&mut game.withdrawal_fractions);
-    let eligible_amount = utils::calculate_withdraw_amount(fraction, game.max_players, game.deposit_amount);
-
     let resource_account_signer = account::create_signer_with_capability(&game.signer_cap);
+
+    let fraction = vector::pop_back(&mut game.withdrawal_fractions);
+    let eligible_amount = if (vector::length(&game.withdrawal_fractions) == 0) {
+      coin::balance<CoinType>(signer::address_of(&resource_account_signer))
+    } else {
+      utils::calculate_withdraw_amount(fraction, game.max_players, game.deposit_amount)
+    };
+
     coin::transfer<CoinType>(&resource_account_signer, player_address, eligible_amount);
 
     let (_, player_index) = vector::index_of(&game.players, &player_address);
