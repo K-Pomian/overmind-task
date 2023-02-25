@@ -846,4 +846,32 @@ module OvermindTask::core {
     let game_name = b"TestGame";
     paperhand<TestCoin>(player, game_name);
   }
+
+  #[test(
+    aptos_framework = @0x1,
+    owner = @ADMIN,
+    random_guy = @0x48651
+  )]
+  #[expected_failure(abort_code = 0xd, location = Self)]
+  public entry fun test_peperhand_permission_denied(
+    aptos_framework: &signer,
+    owner: &signer,
+    random_guy: &signer
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 489461526;
+    let withdrawal_fractions = vector[5423, 2954, 1623];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    paperhand<TestCoin>(random_guy, game_name);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
 }
