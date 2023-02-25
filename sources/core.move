@@ -308,4 +308,32 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(owner = @ADMIN, aptos_framework = @0x1)]
+  #[expected_failure(abort_code = 0x4, location = Self)]
+  public entry fun test_create_game_which_existed_in_the_past(
+    owner: &signer,
+    aptos_framework: &signer
+  ) acquires State {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 2550, 1950];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let game_name_string = string::utf8(game_name);
+    let owner_address = signer::address_of(owner);
+    let state = borrow_global_mut<State>(owner_address);
+    table::remove(&mut state.available_games, game_name_string);
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
 }
