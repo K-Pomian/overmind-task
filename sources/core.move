@@ -248,4 +248,15 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(owner = @0xaaaa444522)]
+  #[expected_failure(abort_code = 0x0, location = Self)]
+  public entry fun test_create_game_wrong_admin(owner: &signer) acquires State {
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[6550, 2000, 1450];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+  }
 }
