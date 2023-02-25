@@ -270,4 +270,21 @@ module OvermindTask::core {
 
     create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
   }
+
+  #[test(owner = @ADMIN)]
+  #[expected_failure(abort_code = 0x2, location = Self)]
+  public entry fun test_create_game_invalid_number_of_depositors(owner: &signer) acquires State {
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[10000];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
 }
