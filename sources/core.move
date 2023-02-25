@@ -584,4 +584,137 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(
+    aptos_framework = @0x1,
+    owner = @ADMIN,
+    first_player = @0xafdd8854,
+    second_player = @0xaabbccdd
+  )]
+  public entry fun test_cancel_expired_game_successful(
+    aptos_framework: &signer,
+    owner: &signer,
+    first_player: &signer,
+    second_player: &signer,
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 3000, 1500];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let first_player_address = signer::address_of(first_player);
+    account::create_account_for_test(first_player_address);
+    coin::register<TestCoin>(first_player);
+    coin::deposit(first_player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(first_player, game_name);
+
+    let second_player_address = signer::address_of(second_player);
+    account::create_account_for_test(second_player_address);
+    coin::register<TestCoin>(second_player);
+    coin::deposit(second_player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(second_player, game_name);
+
+    timestamp::fast_forward_seconds(604801);
+
+    cancel_expired_game<TestCoin>(first_player, game_name);
+
+    let owner_address = signer::address_of(owner);
+    let state = borrow_global<State>(owner_address);
+
+    let game_name_string = string::utf8(game_name);
+    assert!(!table::contains(&state.available_games, game_name_string), 0);
+
+    let seeds = GAME_SEED;
+    vector::append(&mut seeds, game_name);
+    let game_address = account::create_resource_address(&owner_address, seeds);
+
+    assert!(coin::balance<TestCoin>(game_address) == 0, 1);
+    assert!(coin::balance<TestCoin>(first_player_address) == amount_per_depositor, 2);
+    assert!(coin::balance<TestCoin>(second_player_address) == amount_per_depositor, 3);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
+
+  #[test(owner = @ADMIN, player = @0xafdd8854)]
+  #[expected_failure(abort_code = 0x5, location = Self)]
+  public entry fun test_cancel_expired_game_not_exists(
+    owner: &signer,
+    player: &signer
+  ) acquires State, DiamondHandsGame {
+    init_state(owner);
+
+    let game_name = b"TestGame";
+    cancel_expired_game<TestCoin>(player, game_name);
+  }
+
+  #[test(aptos_framework = @0x1, owner = @ADMIN)]
+  #[expected_failure(abort_code = 0x9, location = Self)]
+  public entry fun test_cancel_expired_game_not_expired(
+    aptos_framework: &signer,
+    owner: &signer
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 3000, 1500];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    cancel_expired_game<TestCoin>(owner, game_name);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
+
+  #[test(
+    aptos_framework = @0x1,
+    owner = @ADMIN,
+    player = @0x45841,
+    random_guy = @0x5555555
+  )]
+  #[expected_failure(abort_code = 0xd, location = Self)]
+  public entry fun test_cancel_expired_game_permission_denied(
+    aptos_framework: &signer,
+    owner: &signer,
+    player: &signer,
+    random_guy: &signer
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 3000, 1500];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let player_address = signer::address_of(player);
+    account::create_account_for_test(player_address);
+    coin::register<TestCoin>(player);
+    coin::deposit(player_address, coin::mint<TestCoin>(amount_per_depositor, &mint_cap));
+
+    join_game<TestCoin>(player, game_name);
+
+    timestamp::fast_forward_seconds(604801);
+
+    cancel_expired_game<TestCoin>(random_guy, game_name);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
 }
