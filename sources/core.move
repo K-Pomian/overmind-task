@@ -528,4 +528,31 @@ module OvermindTask::core {
     coin::destroy_freeze_cap(freeze_cap);
     coin::destroy_mint_cap(mint_cap);
   }
+
+  #[test(aptos_framework = @0x1, owner = @ADMIN, player = @0xafdd8854)]
+  #[expected_failure(abort_code = 0xb, location = Self)]
+  public entry fun test_join_game_player_has_coin_not_registered(
+    aptos_framework: &signer,
+    owner: &signer,
+    player: &signer
+  ) acquires State, DiamondHandsGame {
+    timestamp::set_time_has_started_for_testing(aptos_framework);
+    let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
+
+    let game_name = b"TestGame";
+    let amount_per_depositor = 486123;
+    let withdrawal_fractions = vector[5500, 4500];
+    let join_duration = 604800; // week
+
+    create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
+
+    let player_address = signer::address_of(player);
+    account::create_account_for_test(player_address);
+    
+    join_game<TestCoin>(player, game_name);
+
+    coin::destroy_burn_cap(burn_cap);
+    coin::destroy_freeze_cap(freeze_cap);
+    coin::destroy_mint_cap(mint_cap);
+  }
 }
