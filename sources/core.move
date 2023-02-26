@@ -38,7 +38,8 @@ module OvermindTask::core {
 
   struct State has key {
     available_games: Table<String, address>,
-    game_creation_events: EventHandle<CreateGameEvent>
+    game_creation_events: EventHandle<CreateGameEvent>,
+    game_started_events: EventHandle<StartGameEvent>,
   }
   
   struct DiamondHandsGame<phantom CoinType> has key {
@@ -54,7 +55,8 @@ module OvermindTask::core {
   fun init_state(owner: &signer) {
     move_to(owner, State {
       available_games: table::new(),
-      game_creation_events: account::new_event_handle<CreateGameEvent>(owner)
+      game_creation_events: account::new_event_handle<CreateGameEvent>(owner),
+      game_started_events: account::new_event_handle<StartGameEvent>(owner)
     })
   }
 
@@ -118,7 +120,7 @@ module OvermindTask::core {
     player: &signer,
     game_name: vector<u8>
   ) acquires State, DiamondHandsGame {
-    let state = borrow_global<State>(@ADMIN);
+    let state = borrow_global_mut<State>(@ADMIN);
 
     let game_name_string = string::utf8(game_name);
     assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
@@ -141,6 +143,13 @@ module OvermindTask::core {
       &mut game.game_joining_events,
       events::new_join_game_event(player_address)
     );
+
+    if (vector::length(&game.players) == game.max_players) {
+      event::emit_event<StartGameEvent>(
+        &mut state.game_started_events,
+        events::new_start_game_event(game_name_string, game.players)
+      );
+    };
   }
 
   public entry fun cancel_expired_game<CoinType>(
