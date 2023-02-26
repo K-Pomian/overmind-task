@@ -7,5 +7,5 @@ rev = 'main'
 subdir = 'aptos-move/framework/aptos-framework'
 
 [addresses]
-OvermindTask = "07ab313c97e475dae70f39d98980374e33d705c9acb2fff3b662edd58c079954"
-ADMIN = "07ab313c97e475dae70f39d98980374e33d705c9acb2fff3b662edd58c079954"
+OvermindTask = "4723ae199cbcf97347e7d4c2d4e720df379834dd6be8b0743cc8f581502ee4dc"
+ADMIN = "4723ae199cbcf97347e7d4c2d4e720df379834dd6be8b0743cc8f581502ee4dc"
