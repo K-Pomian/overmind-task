@@ -50,6 +50,7 @@ module OvermindTask::core {
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
     game_joining_events: EventHandle<JoinGameEvent>,
+    paperhand_events: EventHandle<PaperhandEvent>,
     signer_cap: SignerCapability
   }
 
@@ -104,6 +105,7 @@ module OvermindTask::core {
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
       game_joining_events: account::new_event_handle<JoinGameEvent>(&resource_account_signer),
+      paperhand_events: account::new_event_handle<PaperhandEvent>(&resource_account_signer),
       signer_cap: resource_account_cap
     });
 
@@ -218,6 +220,11 @@ module OvermindTask::core {
 
     let (_, player_index) = vector::index_of(&game.players, &player_address);
     vector::remove(&mut game.players, player_index);
+
+    event::emit_event<PaperhandEvent>(
+      &mut game.paperhand_events,
+      events::new_paperhand_event(player_address, eligible_amount)
+    );
 
     if (vector::length(&game.players) == 0) {
       table::remove(&mut state.available_games, game_name_string);
