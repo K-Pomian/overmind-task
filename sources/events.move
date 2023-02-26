@@ -13,6 +13,7 @@ module OvermindTask::events {
   }
 
   struct StartGameEvent has store, drop {
+    game_name: String,
     players: vector<address>
   }
 
@@ -26,6 +27,7 @@ module OvermindTask::events {
   }
 
   public fun new_create_game_event(
+    game_name: String,
     max_players: u64,
     amount_per_depositor: u64,
     expiration_timestamp: u64
@@ -34,10 +36,10 @@ module OvermindTask::events {
   }
 
   public fun new_join_game_event(player_address: address): JoinGameEvent {
-    JoinGameEvent { player_address, game_name }
+    JoinGameEvent { player_address }
   }
 
-  public fun new_start_game_event(players: vector<address>): StartGameEvent {
+  public fun new_start_game_event(game_name: String, players: vector<address>): StartGameEvent {
     StartGameEvent { game_name, players }
   }
 
@@ -49,6 +51,6 @@ module OvermindTask::events {
     player: address,
     withdraw_amount: u64
   ): PaperhandEvent {
-    PaperhandEvent { player, game_name, withdraw_amount }
+    PaperhandEvent { player, withdraw_amount }
   }
 }
