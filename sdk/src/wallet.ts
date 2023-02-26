@@ -11,6 +11,11 @@ export class TestWallet implements Wallet {
   account: AptosAccount
   aptosClient: AptosClient
 
+  public constructor(account: AptosAccount, aptosClient: AptosClient) {
+    this.account = account
+    this.aptosClient = aptosClient
+  }
+
   async signTransaction(
     tx: Types.TransactionPayload_EntryFunctionPayload,
     max_gas_amount?: string
