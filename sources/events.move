@@ -1,28 +1,28 @@
 module OvermindTask::events {
   use std::string::String;
 
-  struct CreateGameEvent has store {
+  struct CreateGameEvent has store, drop {
     game_name: String,
     max_players: u64,
     amount_per_depositor: u64,
     expiration_timestamp: u64,
   }
 
-  struct JoinGameEvent has store {
+  struct JoinGameEvent has store, drop {
     player_address: address,
     game_name: String
   }
 
-  struct StartGameEvent has store {
+  struct StartGameEvent has store, drop {
     game_name: String,
     players: vector<address>
   }
 
-  struct CancelGameEvent has store {
+  struct CancelGameEvent has store, drop {
     game_name: String
   }
 
-  struct PaperhandEvent has store {
+  struct PaperhandEvent has store, drop {
     player: address,
     game_name: String,
     withdraw_amount: u64,
