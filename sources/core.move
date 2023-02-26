@@ -40,6 +40,7 @@ module OvermindTask::core {
     available_games: Table<String, address>,
     game_creation_events: EventHandle<CreateGameEvent>,
     game_started_events: EventHandle<StartGameEvent>,
+    game_canceled_events: EventHandle<CancelGameEvent>,
   }
   
   struct DiamondHandsGame<phantom CoinType> has key {
@@ -56,7 +57,8 @@ module OvermindTask::core {
     move_to(owner, State {
       available_games: table::new(),
       game_creation_events: account::new_event_handle<CreateGameEvent>(owner),
-      game_started_events: account::new_event_handle<StartGameEvent>(owner)
+      game_started_events: account::new_event_handle<StartGameEvent>(owner),
+      game_canceled_events: account::new_event_handle<CancelGameEvent>(owner)
     })
   }
 
@@ -183,6 +185,11 @@ module OvermindTask::core {
     };
     
     table::remove(&mut state.available_games, game_name_string);
+
+    event::emit_event<CancelGameEvent>(
+      &mut state.game_canceled_events,
+      events::new_cancel_game_event(game_name_string)
+    );
   }
 
   public entry fun paperhand<CoinType>(player: &signer, game_name: vector<u8>) acquires State, DiamondHandsGame {
