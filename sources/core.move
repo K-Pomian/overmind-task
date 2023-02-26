@@ -3,12 +3,22 @@ module OvermindTask::core {
   use std::table::{Self, Table};
   use std::string::{Self, String};
   use std::signer;
+  use std::event::{Self, EventHandle};
 
   use aptos_framework::account::{Self, SignerCapability};
   use aptos_framework::timestamp;
   use aptos_framework::coin::{Self, BurnCapability, FreezeCapability, MintCapability};
 
   use OvermindTask::utils;
+  use OvermindTask::events::{
+    Self,
+    CreateGameEvent,
+    JoinGameEvent,
+    StartGameEvent,
+    CancelGameEvent,
+    PaperhandEvent,
+    FinishGameEvent
+  };
 
   const GAME_SEED: vector<u8> = b"DIAMOND_HANDS_GAME";
 
@@ -28,7 +38,11 @@ module OvermindTask::core {
   const PERMISSION_DENIED: u64 = 13;
 
   struct State has key {
-    available_games: Table<String, address>
+    available_games: Table<String, address>,
+    game_creation_events: EventHandle<CreateGameEvent>,
+    game_started_events: EventHandle<StartGameEvent>,
+    game_canceled_events: EventHandle<CancelGameEvent>,
+    game_finished_events: EventHandle<FinishGameEvent>
   }
   
   struct DiamondHandsGame<phantom CoinType> has key {
@@ -37,12 +51,18 @@ module OvermindTask::core {
     deposit_amount: u64,
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
+    game_joining_events: EventHandle<JoinGameEvent>,
+    paperhand_events: EventHandle<PaperhandEvent>,
     signer_cap: SignerCapability
   }
 
   fun init_state(owner: &signer) {
     move_to(owner, State {
-      available_games: table::new()
+      available_games: table::new(),
+      game_creation_events: account::new_event_handle<CreateGameEvent>(owner),
+      game_started_events: account::new_event_handle<StartGameEvent>(owner),
+      game_canceled_events: account::new_event_handle<CancelGameEvent>(owner),
+      game_finished_events: account::new_event_handle<FinishGameEvent>(owner)
     })
   }
 
@@ -87,15 +107,27 @@ module OvermindTask::core {
       deposit_amount: amount_per_depositor,
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
+      game_joining_events: account::new_event_handle<JoinGameEvent>(&resource_account_signer),
+      paperhand_events: account::new_event_handle<PaperhandEvent>(&resource_account_signer),
       signer_cap: resource_account_cap
     });
+
+    event::emit_event<CreateGameEvent>(
+      &mut state.game_creation_events,
+      events::new_create_game_event(
+        game_name_string,
+        vector::length(&withdrawal_fractions),
+        amount_per_depositor,
+        current_time + join_duration 
+      )
+    );
   }
 
   public entry fun join_game<CoinType>(
     player: &signer,
     game_name: vector<u8>
   ) acquires State, DiamondHandsGame {
-    let state = borrow_global<State>(@ADMIN);
+    let state = borrow_global_mut<State>(@ADMIN);
 
     let game_name_string = string::utf8(game_name);
     assert!(table::contains(&state.available_games, game_name_string), GAME_NOT_EXISTS);
@@ -113,6 +145,18 @@ module OvermindTask::core {
 
     coin::transfer<CoinType>(player, game_address, game.deposit_amount);
     vector::push_back(&mut game.players, player_address);
+
+    event::emit_event<JoinGameEvent>(
+      &mut game.game_joining_events,
+      events::new_join_game_event(player_address)
+    );
+
+    if (vector::length(&game.players) == game.max_players) {
+      event::emit_event<StartGameEvent>(
+        &mut state.game_started_events,
+        events::new_start_game_event(game_name_string, game.players)
+      );
+    };
   }
 
   public entry fun cancel_expired_game<CoinType>(
@@ -146,6 +190,11 @@ module OvermindTask::core {
     };
     
     table::remove(&mut state.available_games, game_name_string);
+
+    event::emit_event<CancelGameEvent>(
+      &mut state.game_canceled_events,
+      events::new_cancel_game_event(game_name_string)
+    );
   }
 
   public entry fun paperhand<CoinType>(player: &signer, game_name: vector<u8>) acquires State, DiamondHandsGame {
@@ -175,9 +224,19 @@ module OvermindTask::core {
     let (_, player_index) = vector::index_of(&game.players, &player_address);
     vector::remove(&mut game.players, player_index);
 
+    event::emit_event<PaperhandEvent>(
+      &mut game.paperhand_events,
+      events::new_paperhand_event(player_address, eligible_amount)
+    );
+
     if (vector::length(&game.players) == 0) {
       table::remove(&mut state.available_games, game_name_string);
-    }
+
+      event::emit_event<FinishGameEvent>(
+        &mut state.game_finished_events,
+        events::new_finish_game_event(game_name_string)
+      );
+    };
   }
 
   #[test_only]
@@ -198,6 +257,8 @@ module OvermindTask::core {
 
   #[test(account = @0x1111)]
   fun test_init_state(account: &signer) {
+    let owner_address = signer::address_of(account);
+    account::create_account_for_test(owner_address);
     init_state(account);
 
     let account_address = signer::address_of(account);
@@ -209,6 +270,9 @@ module OvermindTask::core {
     owner: &signer,
     aptos_framework: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+    
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
     let game_name = b"TestGame";
@@ -219,7 +283,6 @@ module OvermindTask::core {
     create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
 
     let game_name_string = string::utf8(game_name);
-    let owner_address = signer::address_of(owner);
     let state = borrow_global<State>(owner_address);
     assert!(table::contains(&state.available_games, game_name_string), 0);
 
@@ -293,6 +356,9 @@ module OvermindTask::core {
     owner: &signer, 
     aptos_framework: &signer
   ) acquires State {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -315,6 +381,9 @@ module OvermindTask::core {
     owner: &signer,
     aptos_framework: &signer
   ) acquires State {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -326,7 +395,6 @@ module OvermindTask::core {
     create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
 
     let game_name_string = string::utf8(game_name);
-    let owner_address = signer::address_of(owner);
     let state = borrow_global_mut<State>(owner_address);
     table::remove(&mut state.available_games, game_name_string);
 
@@ -351,6 +419,9 @@ module OvermindTask::core {
     second_player: &signer,
     third_player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -361,7 +432,6 @@ module OvermindTask::core {
 
     create_game<TestCoin>(owner, game_name, amount_per_depositor, withdrawal_fractions, join_duration);
 
-    let owner_address = signer::address_of(owner);
     let state = borrow_global<State>(owner_address);
     
     let game_name_string = string::utf8(game_name);
@@ -426,6 +496,8 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
     init_state(owner);
 
     let game_name = b"TestGame";
@@ -439,6 +511,9 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -473,6 +548,9 @@ module OvermindTask::core {
     second_player: &signer,
     third_player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+    
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -511,6 +589,9 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -541,6 +622,9 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -568,6 +652,9 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -602,6 +689,9 @@ module OvermindTask::core {
     first_player: &signer,
     second_player: &signer,
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -630,7 +720,6 @@ module OvermindTask::core {
 
     cancel_expired_game<TestCoin>(first_player, game_name);
 
-    let owner_address = signer::address_of(owner);
     let state = borrow_global<State>(owner_address);
 
     let game_name_string = string::utf8(game_name);
@@ -655,6 +744,8 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
     init_state(owner);
 
     let game_name = b"TestGame";
@@ -667,6 +758,9 @@ module OvermindTask::core {
     aptos_framework: &signer,
     owner: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+    
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -697,6 +791,9 @@ module OvermindTask::core {
     player: &signer,
     random_guy: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -737,6 +834,9 @@ module OvermindTask::core {
     second_player: &signer,
     third_player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -768,7 +868,6 @@ module OvermindTask::core {
 
     join_game<TestCoin>(third_player, game_name);
 
-    let owner_address = signer::address_of(owner);
     let seeds = GAME_SEED;
     vector::append(&mut seeds, game_name);
     let game_address = account::create_resource_address(&owner_address, seeds);
@@ -841,6 +940,8 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
     init_state(owner);
 
     let game_name = b"TestGame";
@@ -858,6 +959,8 @@ module OvermindTask::core {
     owner: &signer,
     random_guy: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
@@ -886,6 +989,9 @@ module OvermindTask::core {
     owner: &signer,
     player: &signer
   ) acquires State, DiamondHandsGame {
+    let owner_address = signer::address_of(owner);
+    account::create_account_for_test(owner_address);
+
     timestamp::set_time_has_started_for_testing(aptos_framework);
     let (burn_cap, freeze_cap, mint_cap) = initialize_test_coin(owner);
 
