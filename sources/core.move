@@ -3,12 +3,21 @@ module OvermindTask::core {
   use std::table::{Self, Table};
   use std::string::{Self, String};
   use std::signer;
+  use std::event::{Self, EventHandle};
 
   use aptos_framework::account::{Self, SignerCapability};
   use aptos_framework::timestamp;
   use aptos_framework::coin::{Self, BurnCapability, FreezeCapability, MintCapability};
 
   use OvermindTask::utils;
+  use OvermindTask::events::{
+    Self,
+    CreateGameEvent,
+    JoinGameEvent,
+    StartGameEvent,
+    CancelGameEvent,
+    PaperhandEvent
+  };
 
   const GAME_SEED: vector<u8> = b"DIAMOND_HANDS_GAME";
 
@@ -28,7 +37,8 @@ module OvermindTask::core {
   const PERMISSION_DENIED: u64 = 13;
 
   struct State has key {
-    available_games: Table<String, address>
+    available_games: Table<String, address>,
+    game_creation_events: EventHandle<CreateGameEvent>
   }
   
   struct DiamondHandsGame<phantom CoinType> has key {
@@ -42,7 +52,8 @@ module OvermindTask::core {
 
   fun init_state(owner: &signer) {
     move_to(owner, State {
-      available_games: table::new()
+      available_games: table::new(),
+      game_creation_events: account::new_event_handle<CreateGameEvent>(owner)
     })
   }
 
@@ -89,6 +100,16 @@ module OvermindTask::core {
       expiration_timestamp: current_time + join_duration,
       signer_cap: resource_account_cap
     });
+
+    event::emit_event<CreateGameEvent>(
+      &mut state.game_creation_events,
+      events::new_create_game_event(
+        game_name_string,
+        vector::length(&withdrawal_fractions),
+        amount_per_depositor,
+        current_time + join_duration 
+      )
+    );
   }
 
   public entry fun join_game<CoinType>(
