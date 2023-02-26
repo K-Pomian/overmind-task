@@ -8,7 +8,8 @@
     "lib"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "createGame": "ts-node scripts/create-game.ts"
   },
   "author": "K-Pomian",
   "license": "ISC",
