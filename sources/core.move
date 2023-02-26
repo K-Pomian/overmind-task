@@ -47,6 +47,7 @@ module OvermindTask::core {
     deposit_amount: u64,
     withdrawal_fractions: vector<u64>, // 10000 == 100% => 100 == 1%
     expiration_timestamp: u64,
+    game_joining_events: EventHandle<JoinGameEvent>,
     signer_cap: SignerCapability
   }
 
@@ -98,6 +99,7 @@ module OvermindTask::core {
       deposit_amount: amount_per_depositor,
       withdrawal_fractions,
       expiration_timestamp: current_time + join_duration,
+      game_joining_events: account::new_event_handle<JoinGameEvent>(&resource_account_signer),
       signer_cap: resource_account_cap
     });
 
@@ -134,6 +136,11 @@ module OvermindTask::core {
 
     coin::transfer<CoinType>(player, game_address, game.deposit_amount);
     vector::push_back(&mut game.players, player_address);
+
+    event::emit_event<JoinGameEvent>(
+      &mut game.game_joining_events,
+      events::new_join_game_event(player_address)
+    );
   }
 
   public entry fun cancel_expired_game<CoinType>(
