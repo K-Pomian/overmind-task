@@ -26,6 +26,10 @@ module OvermindTask::events {
     withdraw_amount: u64,
   }
 
+  struct FinishGameEvent has store, drop {
+    game_name: String
+  }
+
   public fun new_create_game_event(
     game_name: String,
     max_players: u64,
@@ -52,5 +56,9 @@ module OvermindTask::events {
     withdraw_amount: u64
   ): PaperhandEvent {
     PaperhandEvent { player, withdraw_amount }
+  }
+
+  public fun new_finish_game_event(game_name: String): FinishGameEvent {
+    FinishGameEvent { game_name }
   }
 }
