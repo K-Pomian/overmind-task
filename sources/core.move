@@ -16,7 +16,8 @@ module OvermindTask::core {
     JoinGameEvent,
     StartGameEvent,
     CancelGameEvent,
-    PaperhandEvent
+    PaperhandEvent,
+    FinishGameEvent
   };
 
   const GAME_SEED: vector<u8> = b"DIAMOND_HANDS_GAME";
@@ -41,6 +42,7 @@ module OvermindTask::core {
     game_creation_events: EventHandle<CreateGameEvent>,
     game_started_events: EventHandle<StartGameEvent>,
     game_canceled_events: EventHandle<CancelGameEvent>,
+    game_finished_events: EventHandle<FinishGameEvent>
   }
   
   struct DiamondHandsGame<phantom CoinType> has key {
@@ -59,7 +61,8 @@ module OvermindTask::core {
       available_games: table::new(),
       game_creation_events: account::new_event_handle<CreateGameEvent>(owner),
       game_started_events: account::new_event_handle<StartGameEvent>(owner),
-      game_canceled_events: account::new_event_handle<CancelGameEvent>(owner)
+      game_canceled_events: account::new_event_handle<CancelGameEvent>(owner),
+      game_finished_events: account::new_event_handle<FinishGameEvent>(owner)
     })
   }
 
@@ -228,7 +231,12 @@ module OvermindTask::core {
 
     if (vector::length(&game.players) == 0) {
       table::remove(&mut state.available_games, game_name_string);
-    }
+
+      event::emit_event<FinishGameEvent>(
+        &mut state.game_finished_events,
+        events::new_finish_game_event(game_name_string)
+      );
+    };
   }
 
   #[test_only]
